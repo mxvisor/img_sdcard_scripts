@@ -1,6 +1,12 @@
 #!/bin/bash
 
-img_list=(`ls -1 *.{img,ext4,img.gz,ext4.gz} 2>/dev/null`)
+EXTENSIONS=img,ext4,wic
+
+if [[ $1 == "gz" ]];then
+GZIP={,.gz}
+fi
+
+img_list=(`ls -1 $(eval echo "*.{$EXTENSIONS}$GZIP") 2>/dev/null`)
 if [ -z "$img_list" ];then
 echo "ERROR: No images found in current directory"
 exit 1

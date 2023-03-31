@@ -4,7 +4,7 @@ if [ $1 ];then
     IMAGE_NAME=$1
     [[ -f "$IMAGE_NAME" ]] || { echo "ERROR: Image $IMAGE_NAME not exist"; exit 1; }
 else
-    IMAGE_NAME=`select_image.sh` || { echo "$IMAGE_NAME"; exit 1; }
+    IMAGE_NAME=`select_image.sh gz` || { echo "$IMAGE_NAME"; exit 1; }
 fi
 
 DEVICE=`select_external_drive.sh` || { echo "$DEVICE"; exit 1; }

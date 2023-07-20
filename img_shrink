@@ -1,0 +1,35 @@
+#!/bin/bash
+
+
+if [ $1 ];then
+    IMAGE_NAME=$1
+else
+
+    IMAGE_NAME=`select_image.sh`
+    if [ $? -eq 1 ];then
+	echo "IMAGE error"
+	exit
+    fi
+fi
+
+
+if [[ ! -f "$IMAGE_NAME" ]];then
+    echo "ERROR: $IMAGE_NAME not exist"
+exit
+fi
+
+SRC=$PWD/$IMAGE_NAME
+
+TARGET="${SRC%.*}_shrinked.img"
+
+echo "source image:   $SRC"
+echo "shrinked image: $TARGET"
+
+input="n"
+read -r -p "Continue? [y/N]" input
+if [[ ! $input =~ ^[Yy]$ ]] ;then
+echo "cancelled!"
+exit
+fi
+
+sudo `dirname -- "$0"`/pishrink.sh $SRC $TARGET

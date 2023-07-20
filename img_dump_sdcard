@@ -1,0 +1,27 @@
+#!/bin/bash
+#sudo dd if=sdcard_kpp5_ivan.img of=/dev/sdb status=progress
+
+DEVICE=`select_external_drive.sh` || { echo "$DEVICE"; exit 1; }
+
+read -r -p "Enter image name without spaces:" IMAGE_NAME
+[[ ! $IMAGE_NAME  =~ [\:@#$%\&*+=' '] ]] || { echo "ERROR: Image name does not contain symbols :@#$%\&*+=";exit 1; }
+[[ ! -z $IMAGE_NAME ]] || { echo "ERROR: No image name entered";exit 1; }
+
+read -r -p "Do you want to compress image? [y/N]" compressed
+[[ $compressed =~ ^[Yy]$ ]] && IMAGE_NAME=$IMAGE_NAME.img.gz || IMAGE_NAME=$IMAGE_NAME.img
+
+echo "Selected device: $DEVICE"
+echo "Image name:      $IMAGE_NAME"
+
+read -r -p "Continue? [y/N]" input
+[[ $input =~ ^[Yy]$ ]] || { echo "Canceled!";exit 1; }
+
+if [[ $IMAGE_NAME =~ .*".gz" ]]; then
+    sudo pv -tpreb $DEVICE | dd bs=16M | gzip -c -9 > $IMAGE_NAME
+else
+    sudo pv -tpreb $DEVICE | dd of=$IMAGE_NAME bs=16M
+fi
+
+echo "Success!"
+
+#rescuecd#/> dd if=/dev/sda bs=1024 conv=noerror,sync | pv | gzip -c -9 > /mirror/backup-sda.gz

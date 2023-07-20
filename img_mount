@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [ $1 ];then
+    IMAGE_NAME=$1
+    [[ -f "$IMAGE_NAME" ]] || { echo "ERROR: $IMAGE_NAME not exist"; exit 1; }
+else
+    IMAGE_NAME=`select_image.sh` || { echo "$IMAGE_NAME"; exit 1; }
+fi
+
+#sudo losetup -j  $IMAGE_NAME
+sudo losetup --find --partscan $IMAGE_NAME
+LOOP_DEVICE=$(losetup -j $IMAGE_NAME |cut -d":" -f1)
+echo "Attached loop device $LOOP_DEVICE"
+
+if [[ -e $LOOP_DEVICE""p1 ]];then
+    PARTITION_LIST=$LOOP_DEVICE""p*
+else
+    PARTITION_LIST=$LOOP_DEVICE
+fi
+
+for part in $PARTITION_LIST; do
+    echo "Mount loop partition $part"
+    MOUNT_DIR=`basename $part`
+    [[ ! -d $PWD/$MOUNT_DIR ]] && sudo mkdir -p "/$PWD/$MOUNT_DIR"
+    sudo mount $part "/$PWD/$MOUNT_DIR"
+done

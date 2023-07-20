@@ -1,0 +1,32 @@
+#!/bin/bash
+
+if [ $1 ];then
+    IMAGE_NAME=$1
+    [[ -f "$IMAGE_NAME" ]] || { echo "ERROR: Image $IMAGE_NAME not exist"; exit 1; }
+else
+    IMAGE_NAME=`select_image.sh` || { echo "$IMAGE_NAME"; exit 1; }
+fi
+
+DEVICE=`select_external_drive.sh` || { echo "$DEVICE"; exit 1; }
+
+echo "Image name:      $IMAGE_NAME"
+parted -s $IMAGE_NAME unit MiB print
+
+echo "Selected device: $DEVICE (`lsblk -d -n -o size $DEVICE`)"
+
+read -r -p "Continue? [y/N]" input
+[[ $input =~ ^[Yy]$ ]] || { echo "Canceled!"; exit 1; }
+
+
+if [[ $IMAGE_NAME =~ .*".gz" ]]; then
+    pv -tpreb $IMAGE_NAME | gzip -d | sudo dd of=$DEVICE bs=16M;sleep 10;sync;sync
+else
+    pv -tpreb $IMAGE_NAME | sudo dd of=$DEVICE bs=16M; sleep 10;sync;sync
+fi
+
+
+
+
+#rescuecd#/> gunzip -c /mirror/backup-sda.gz | pv | dd of=/dev/sda bs=1024
+
+

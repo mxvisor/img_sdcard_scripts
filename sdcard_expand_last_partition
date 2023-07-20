@@ -1,0 +1,65 @@
+#!/bin/bash
+#sudo dd if=sdcard.img of=/dev/sdb status=progress
+
+#sudo pv -tpreb sdcard_shrinked.img | dd of=/dev/sdb
+
+DEVICE=`select_external_drive.sh`
+if [ $? -eq 1 ];then
+echo "DEVICE error"
+exit
+fi
+
+if [[ `sudo fdisk -l $DEVICE 2>&1 | grep "GPT PMBR size mismatch"` ]];then
+    echo "Found partition error"
+    sudo sfdisk --relocate gpt-bak-std $DEVICE
+#    (echo w;echo q) | sudo fdisk /dev/sda
+    echo "Fixed!"
+fi
+
+sync
+#sudo blockdev --rereadpt $DEVICE
+
+#lsblk -A -n -o path,fstype,hotplug $DEVICE
+
+#PARTITION=`lsblk -A -n -o path,fstype,hotplug $DEVICE | awk -F' ' 'NF=3 && $3==1' |tail -n1`
+PARTITION=`sudo sfdisk -l -o Device $DEVICE |tail -n1`
+PARTITION_NUMBER=${PARTITION#$DEVICE}
+#PARTITION_SIZE=`lsblk -d -n -o size $PARTITION` # wrong sometimes right after burn
+#PARTITION_SIZE=`sudo sfdisk --list $DEVICE | grep $PARTITION | awk '{print $5}'`
+PARTITION_SIZE=`sudo partx -g -o SIZE $PARTITION`
+FREE_SPACE=`sudo sfdisk --force --list-free $DEVICE --quiet |tail -n1 | awk '{print $4}'`
+
+echo "Selected device: $DEVICE"
+echo "Last partition on device: $PARTITION $PARTITION_SIZE"
+echo "Free space on device: $FREE_SPACE"
+
+input="n"
+read -r -p "Do you want to expand partition to max available size? [y/N]" input
+if [[ ! $input =~ ^[Yy]$ ]] ;then
+echo "Canceled!"
+exit
+fi
+
+sudo parted $DEVICE resizepart $PARTITION_NUMBER 100%
+
+sudo e2fsck -f $PARTITION
+sudo resize2fs $PARTITION
+#hdparm -z /dev/sda
+sudo partprobe $DEVICE #должно помочь в определении нового размера
+sync
+
+#sudo systemctl restart systemd-udevd.service
+#sudo blockdev --rereadpt $DEVICE
+#sudo udevadm settle --exit-if-exists=$PARTITION
+sudo partx -u $PARTITION
+#sudo partx -g -o SIZE $PARTITION
+
+#NEW_PARTITION_SIZE=`lsblk -d -n -o size $PARTITION` # device size
+#NEW_PARTITION_SIZE=`sudo sfdisk --list $DEVICE |grep $PARTITION | awk '{print $5}'`
+NEW_PARTITION_SIZE=`sudo partx -g -o SIZE $PARTITION`
+echo New size of last partition on device: $PARTITION $NEW_PARTITION_SIZE
+
+#echo ", +" | ./sfdisk -N 1 /dev/sdc #alternative onliner
+#the '+' means "all available space". And vice-versa you can reduce the size of the partition; it's possioble to specify the size in absolute numbers (without +/- signs), or in sectors.
+
+#echo "Fix" | parted /dev/loop0 ---pretend-input-tty print

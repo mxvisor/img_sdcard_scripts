@@ -1,0 +1,79 @@
+#!/bin/bash
+
+if [ $1 ];then
+    IMAGE_NAME=$1
+    [[ -f "$IMAGE_NAME" ]] || { echo "ERROR: $IMAGE_NAME not exist"; exit 1; }
+else
+    IMAGE_NAME=`select_image.sh` || { echo "$IMAGE_NAME"; exit 1; }
+fi
+
+
+
+
+LOOP_DEVICE=`sudo losetup --find --show --partscan $IMAGE_NAME`
+#LOOP_DEVICE=$(losetup -j $IMAGE_NAME |cut -d":" -f1)
+#echo "Attached loop device $LOOP_DEVICE"
+
+
+if [[ -e $LOOP_DEVICE""p1 ]];then
+    PARTITION_LIST=`ls -1 $LOOP_DEVICE""p*`
+else
+    PARTITION_LIST=$LOOP_DEVICE
+fi
+
+len="${#PARTITION_LIST[@]}"
+
+sleep 1
+
+for ((i=0;i<$len;i++)); do
+    LIST=$LIST"[$((i+1))] (`lsblk -P -d -n -o size,uuid,label ${PARTITION_LIST[$i]}`)"$'\n'
+done
+
+sudo losetup --detach $LOOP_DEVICE
+
+
+#PARTITION_LIST=(`sfdisk -l -q -o device,uuid,name $IMAGE_NAME |tail -n +2 | awk '{print $1}'`)
+#len=${#PARTITION_LIST[@]}
+#for ((i=0;i<$len;i++)); do
+#    LIST=$LIST"[$((i+1))] ${PARTITION_LIST[$i]}  `sfdisk --part-uuid $IMAGE_NAME $(($i+1))` `sfdisk --part-label $IMAGE_NAME $(($i+1))`  "$'\n'
+#done
+
+read -p "$LIST""select partition for UUID change [1-$((len))]:" index
+
+re='^[1-9]+$'
+[[ $index =~ $re ]] || { echo "ERROR: Entered value is not number"; exit 1; }
+
+(( $index > 0  && $index <= $len )) || { echo "ERROR: Entered number out of range";exit 1; }
+
+read -p "Please enter new UUD (or keep empty for random):" NEW_UUID
+if [ $NEW_UUID ];then
+    [[ `echo $NEW_UUID | grep -E '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$'` ]] || { echo "ERROR: Incorrect UUID";exit 1; }
+else
+    NEW_UUID=`uuidgen -r`
+fi
+
+#
+
+echo "Image:        "$IMAGE_NAME
+echo "Partition:    " $index  #`sfdisk --part-label $IMAGE_NAME $index` "("$index")"
+#echo "Partition type:    "`sfdisk --part-type $IMAGE_NAME $index` "("$index")"
+echo "Current UUID: "`echo ${LIST[$index-1]} | awk -F'UUID=' '{print $2}' | awk '{print $1}' |tr -d '"'`  #`sfdisk --part-uuid $IMAGE_NAME $index`
+echo "New UUID:     "$NEW_UUID
+
+read -r -p "Continue? [y/N]" input
+[[ $input =~ ^[Yy]$ ]] || { echo "Canceled!"; exit 1; }
+
+
+LOOP_DEVICE=`sudo losetup --find --show --partscan $IMAGE_NAME`
+if [[ -e $LOOP_DEVICE""p1 ]];then
+    PARTITION_LIST=`ls -1 $LOOP_DEVICE""p*`
+else
+    PARTITION_LIST=$LOOP_DEVICE
+fi
+
+sudo e2fsck -f ${PARTITION_LIST[$index-1]}
+sudo echo y | sudo tune2fs -f -U $NEW_UUID ${PARTITION_LIST[$index-1]}   #sfdisk --part-uuid $IMAGE_NAME $index $NEW_UUID
+sudo losetup --detach $LOOP_DEVICE
+
+echo "Success!"
+

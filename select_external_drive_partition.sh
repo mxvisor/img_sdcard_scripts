@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dev_list=(`lsblk -A -n -o path,fstype,hotplug| awk -F' ' 'NF=3 && $3==1'`)
+dev_list=(`lsblk -A -n -o path,fstype,hotplug| awk -F' ' '$3==1 {print $1}'`)
 
 #|cut -d ' ' -f 1`)
 

@@ -8,8 +8,8 @@ else
 fi
 
 #sudo losetup -j  $IMAGE_NAME
-sudo losetup --find --partscan $IMAGE_NAME
-LOOP_DEVICE=$(losetup -j $IMAGE_NAME |cut -d":" -f1)
+LOOP_DEVICE=`sudo losetup --find --show --partscan $IMAGE_NAME`
+#LOOP_DEVICE=$(losetup -j $IMAGE_NAME |cut -d":" -f1)
 echo "Attached loop device $LOOP_DEVICE"
 
 if [[ -e $LOOP_DEVICE""p1 ]];then

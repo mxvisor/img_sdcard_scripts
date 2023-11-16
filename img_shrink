@@ -32,4 +32,4 @@ echo "cancelled!"
 exit
 fi
 
-sudo `dirname -- "$0"`/pishrink.sh $SRC $TARGET
+sudo `dirname -- "$0"`/pishrink.sh -s $SRC $TARGET

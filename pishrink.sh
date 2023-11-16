@@ -1,12 +1,12 @@
 #!/bin/bash
 
-version="v0.1.2"
+version="v0.1.3"
 
 CURRENT_DIR="$(pwd)"
 SCRIPTNAME="${0##*/}"
 MYNAME="${SCRIPTNAME%.*}"
 LOGFILE="${CURRENT_DIR}/${SCRIPTNAME%.*}.log"
-REQUIRED_TOOLS="parted losetup tune2fs md5sum e2fsck resize2fs"
+REQUIRED_TOOLS="parted losetup tune2fs md5sum e2fsck resize2fs sgdisk"
 ZIPTOOLS=("gzip xz")
 declare -A ZIP_PARALLEL_TOOL=( [gzip]="pigz" [xz]="xz" ) # parallel zip tool to use in parallel mode
 declare -A ZIP_PARALLEL_OPTIONS=( [gzip]="-f9" [xz]="-T0" ) # options for zip tools in parallel mode
@@ -17,7 +17,7 @@ function info() {
 }
 
 function error() {
-	echo -n "$SCRIPTNAME: ERROR occured in line $1: "
+	echo -n "$SCRIPTNAME: ERROR occurred in line $1: "
 	shift
 	echo "$@"
 }
@@ -70,7 +70,13 @@ function set_autoexpand() {
     #Make pi expand rootfs on next boot
     mountdir=$(mktemp -d)
     partprobe "$loopback"
-    mount "$loopback" "$mountdir"
+    sleep 3
+    umount "$loopback" > /dev/null 2>&1
+    mount "$loopback" "$mountdir" -o rw
+    if (( $? != 0 )); then
+      info "Unable to mount loopback, autoexpand will not be enabled"
+      return
+    fi
 
     if [ ! -d "$mountdir/etc" ]; then
         info "/etc not found, autoexpand will not be enabled"
@@ -155,7 +161,7 @@ EOF1
 help() {
 	local help
 	read -r -d '' help << EOM
-Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
+Usage: $0 [-adhrsvzZ] imagefile.img [newimagefile.img]
 
   -s         Don't expand filesystem when image is booted the first time
   -v         Be verbose
@@ -163,7 +169,6 @@ Usage: $0 [-adhrspvzZ] imagefile.img [newimagefile.img]
   -z         Compress image after shrinking with gzip
   -Z         Compress image after shrinking with xz
   -a         Compress image in parallel using multiple cores
-  -p         Remove logs, apt archives, dhcp leases and ssh hostkeys
   -d         Write debug messages in a debug log file
 EOM
 	echo "$help"
@@ -175,15 +180,13 @@ debug=false
 repair=false
 parallel=false
 verbose=false
-prep=false
 ziptool=""
 
-while getopts ":adhprsvzZ" opt; do
+while getopts ":adhrsvzZ" opt; do
   case "${opt}" in
     a) parallel=true;;
     d) debug=true;;
     h) help;;
-    p) prep=true;;
     r) repair=true;;
     s) should_skip_autoexpand=true ;;
     v) verbose=true;;
@@ -220,6 +223,14 @@ if (( EUID != 0 )); then
   error $LINENO "You need to be running as root."
   exit 3
 fi
+
+# set locale to POSIX(English) temporarily
+# these locale settings only affect the script and its sub processes
+
+export LANGUAGE=POSIX
+export LC_ALL=POSIX
+export LANG=POSIX
+
 
 # check selected compression tool is supported and installed
 if [[ -n $ziptool ]]; then
@@ -293,6 +304,11 @@ fi
 currentsize="$(echo "$tune2fs_output" | grep '^Block count:' | tr -d ' ' | cut -d ':' -f 2)"
 blocksize="$(echo "$tune2fs_output" | grep '^Block size:' | tr -d ' ' | cut -d ':' -f 2)"
 
+isGPT=false
+if fdisk -l $img | grep -q "gpt"; then
+    isGPT=true
+fi
+
 logVariables $LINENO beforesize parted_output partnum partstart parttype tune2fs_output currentsize blocksize
 
 #Check if we should make pi expand rootfs on next boot
@@ -303,15 +319,6 @@ elif [ "$should_skip_autoexpand" = false ]; then
 else
   echo "Skipping autoexpanding process..."
 fi
-
-if [[ $prep == true ]]; then
-  info "Syspreping: Removing logs, apt archives, dhcp leases and ssh hostkeys"
-  mountdir=$(mktemp -d)
-  mount "$loopback" "$mountdir"
-  rm -rf "$mountdir/var/cache/apt/archives/*" "$mountdir/var/lib/dhcpcd5/*" "$mountdir/var/log/*" "$mountdir/var/tmp/*" "$mountdir/tmp/*" "$mountdir/etc/ssh/*_host_*"
-  umount "$mountdir"
-fi
-
 
 #Make sure filesystem is ok
 checkFilesystem
@@ -371,7 +378,7 @@ if (( $rc )); then
 	exit 14
 fi
 
-#Truncate the file
+Truncate the file
 info "Shrinking image"
 endresult=$(parted -ms "$img" unit B print free)
 rc=$?
@@ -381,12 +388,23 @@ if (( $rc )); then
 fi
 
 endresult=$(tail -1 <<< "$endresult" | cut -d ':' -f 2 | tr -d 'B')
+
+if [ "$isGPT" = true ]; then
+    # Have to add an extra 34 Sectors for GPT type
+    endresult=$(($endresult + 34*512));
+fi
+
 logVariables $LINENO endresult
 truncate -s "$endresult" "$img"
 rc=$?
 if (( $rc )); then
 	error $LINENO "trunate failed with rc $rc"
 	exit 16
+fi
+
+if [ "$isGPT" = true ]; then
+    # Go fix the GPT Partition Table
+    sgdisk -e "$img"
 fi
 
 # handle compression

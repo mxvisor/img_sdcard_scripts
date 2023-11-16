@@ -17,9 +17,9 @@ read -r -p "Continue? [y/N]" input
 [[ $input =~ ^[Yy]$ ]] || { echo "Canceled!";exit 1; }
 
 if [[ $IMAGE_NAME =~ .*".gz" ]]; then
-    sudo pv -tpreb $DEVICE | dd bs=16M | gzip -c -9 > $IMAGE_NAME
+    sudo pv --force -tpreb $DEVICE | dd bs=16M | gzip -c -9 > $IMAGE_NAME
 else
-    sudo pv -tpreb $DEVICE | dd of=$IMAGE_NAME bs=16M
+    sudo pv --force -tpreb $DEVICE | dd of=$IMAGE_NAME bs=16M
 fi
 
 echo "Success!"

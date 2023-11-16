@@ -19,9 +19,9 @@ read -r -p "Continue? [y/N]" input
 
 
 if [[ $IMAGE_NAME =~ .*".gz" ]]; then
-    pv -tpreb $IMAGE_NAME | gzip -d | sudo dd of=$DEVICE bs=16M;sleep 10;sync;sync
+    pv --force -tpreb $IMAGE_NAME | gzip -d | sudo dd of=$DEVICE bs=16M;sleep 10;sync;sync
 else
-    pv -tpreb $IMAGE_NAME | sudo dd of=$DEVICE bs=16M; sleep 10;sync;sync
+    pv --force -tpreb $IMAGE_NAME | sudo dd of=$DEVICE bs=16M; sleep 10;sync;sync
 fi
 
 

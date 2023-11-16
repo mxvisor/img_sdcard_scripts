@@ -1,0 +1,44 @@
+#!/bin/bash
+
+if [ $1 ];then
+    IMAGE_NAME=$1
+    [[ -f "$IMAGE_NAME" ]] || { echo "ERROR: Image $IMAGE_NAME not exist"; exit 1; }
+else
+    IMAGE_NAME=`select_image.sh gz` || { echo "$IMAGE_NAME"; exit 1; }
+fi
+
+read -p "Enter required size (in MB) to add to last partition: " EXTRA_SIZE
+
+re='^[1-9][0-9]*$'
+[[ $EXTRA_SIZE =~ $re ]] || { echo "ERROR: Entered value is not numeic"; exit 1; }
+
+echo "Selected image: $IMAGE_NAME"
+
+input="n"
+read -r -p "Do you want to add $EXTRA_SIZE"Mb" to last partition? [y/N]" input
+if [[ ! $input =~ ^[Yy]$ ]] ;then
+echo "Canceled!"
+exit
+fi
+
+truncate -s +100M $IMAGE_NAME
+sgdisk -e "$IMAGE_NAME"
+
+PARTITION=`sudo sfdisk -l -o Device $IMAGE_NAME |tail -n1`
+PARTITION_NUMBER=${PARTITION#$IMAGE_NAME}
+
+PARTITION_SIZE=`sudo partx -g -o SIZE $PARTITION $IMAGE_NAME`
+FREE_SPACE=`sudo sfdisk --force --list-free $IMAGE_NAME --quiet |tail -n1 | awk '{print $4}'`
+
+echo "Last partition on device: $PARTITION $PARTITION_SIZE"
+echo "Free space on image: $FREE_SPACE"
+
+parted $IMAGE_NAME resizepart $PARTITION_NUMBER 100%
+
+LOOP_DEVICE=`sudo losetup --find --show --partscan $IMAGE_NAME`
+sudo e2fsck -f $LOOP_DEVICE"p"$PARTITION_NUMBER
+sudo resize2fs $LOOP_DEVICE"p"$PARTITION_NUMBER
+sudo losetup --detach $LOOP_DEVICE
+
+NEW_PARTITION_SIZE=`partx -g -o SIZE $PARTITION $IMAGE_NAME`
+echo "New size of last partition on device:" $PARTITION $NEW_PARTITION_SIZE

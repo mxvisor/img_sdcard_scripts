@@ -1,0 +1,36 @@
+#!/bin/bash
+
+if [ $1 ];then
+    PARTITION=$1
+    [[ -f "$PARTITION" ]] || { echo "ERROR: $PARTITION not exist"; exit 1; }
+else
+    PARTITION=`select_external_drive_partition.sh` || { echo "$PARTITION"; exit 1; }
+fi
+
+
+
+echo $PARTITION
+
+read -p "Please enter new UUD (or keep empty for random):" NEW_UUID
+if [ $NEW_UUID ];then
+    [[ `echo $NEW_UUID | grep -E '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$'` ]] || { echo "ERROR: Incorrect UUID";exit 1; }
+else
+    NEW_UUID=`uuidgen -r`
+fi
+
+echo "Partition:        "$PARTITION
+echo "Current UUID: "`lsblk -P -d -n -o size,uuid,label $PARTITION | awk -F'UUID=' '{print $2}' | awk '{print $1}' |tr -d '"'`  #`sfdisk --part-uuid $PARTITION $index`
+echo "New UUID:     "$NEW_UUID
+
+read -r -p "Continue? [y/N]" input
+[[ $input =~ ^[Yy]$ ]] || { echo "Canceled!"; exit 1; }
+
+sudo umount $PARTITION
+sudo e2fsck -f $PARTITION
+sudo echo y | sudo tune2fs -f -U $NEW_UUID $PARTITION   #sfdisk --part-uuid $PARTITION $index $NEW_UUID
+
+sudo partprobe $DEVICE #должно помочь в определении нового UUID
+sync
+
+echo "Success!"
+

@@ -13,7 +13,7 @@ len=${#dev_list[@]}
 for ((i=0;i<$len;i++)); do
     #echo [$i] ${dev_list[$i]} "("`lsblk -d -n -o size ${dev_list[$i]}`")"
     #printf "[$i] ${dev_list[$i]} (`lsblk -d -n -o size ${dev_list[$i]}`)\n"
-    LIST=$LIST"[$((i+1))] ${dev_list[$i]} (`lsblk -d -n -o size,uuid,label ${dev_list[$i]}`)"$'\n'
+    LIST=$LIST"[$((i+1))] ${dev_list[$i]} (`lsblk -d -n -P -o size,uuid,label,partlabel ${dev_list[$i]}`)"$'\n'
 done
 
 read -p "$LIST""select partition [1-$((len))]:" index

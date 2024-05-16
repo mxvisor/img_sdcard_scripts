@@ -1,0 +1,42 @@
+#!/bin/bash
+
+
+#shopt -s extglob
+
+PARTNUM=`echo $PARTITION |grep -Eo '[[:digit:]]+$'`
+DEV=`echo $PARTITION | grep -o '.*[^[:digit:]]'`
+
+
+if [ $1 ];then
+    DEVICE=$1
+    [[ -f "$PARTITION" ]] || { echo "ERROR: $PARTITION not exist"; exit 1; }
+else
+    PARTITION=`select_external_drive_partition.sh` || { echo "$PARTITION"; exit 1; }
+fi
+
+
+
+echo $PARTITION
+
+read -p "Please enter new partlabel:" NEW_PARTLABEL
+
+echo "Partition:        "$PARTITION
+echo "Current PARTLABEL: "`lsblk -d -n -o partlabel $PARTITION`   # | awk -F'PARTLABEL=' '{print $2}' | awk '{print $1}' |tr -d '"'`  #`sfdisk --part-uuid $PARTITION $index`
+echo "New PARTLABEL:     "$NEW_PARTLABEL
+
+read -r -p "Continue? [y/N]" input
+[[ $input =~ ^[Yy]$ ]] || { echo "Canceled!"; exit 1; }
+
+sudo umount $PARTITION
+#sudo e2fsck -f $PARTITION
+#sudo echo y | sudo tune2fs -f -L $NEW_LABEL $PARTITION
+
+PARTNUM=`echo $PARTITION |grep -Eo '[[:digit:]]+$'`
+DEVICE=`echo $PARTITION | grep -o '.*[^[:digit:]]'`
+sudo sfdisk -q --part-label $DEVICE $PARTNUM $NEW_PARTLABEL
+
+sudo partprobe $PARTITION #должно помочь в определении нового PARTLABEL
+sync
+
+echo "Success!"
+

@@ -21,7 +21,7 @@ echo "Canceled!"
 exit
 fi
 
-truncate -s +100M $IMAGE_NAME
+truncate -s +$EXTRA_SIZE"M" $IMAGE_NAME
 sgdisk -e "$IMAGE_NAME"
 
 PARTITION=`sudo sfdisk -l -o Device $IMAGE_NAME |tail -n1`
